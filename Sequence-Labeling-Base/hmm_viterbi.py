@@ -1,6 +1,8 @@
 import numpy as np
 from utils import *
 from tqdm import tqdm
+from sklearn import metrics
+from sklearn.preprocessing import MultiLabelBinarizer
 
 
 class HMM_Viterbi:
@@ -74,7 +76,7 @@ class HMM_Viterbi:
                 text_participle += text[i] + "  "
             else:
                 text_participle += text[i]
-        print(text_participle)
+        return text_participle, best_tags_id
 
     def viterbi_decode(self, text):
         seq_len = len(text)
@@ -106,12 +108,40 @@ class HMM_Viterbi:
             best_tags.append(best_tag_id)
         return list(reversed(best_tags))
 
+    def test(self, test_raw_data_filepath, test_processed_data_filepath):
+        print("开始测试...")
+        predictions = []
+        with open(test_raw_data_filepath, "r", encoding="UTF-8") as f:
+            for line in tqdm(f):
+                line = line.strip().replace('\u3000', ' ')
+                if not line:
+                    continue
+                _, prediction = model.predict(line)
+                predictions.append(prediction)
+
+        test_data = load_data(test_processed_data_filepath)
+        real = [dict_content["label"] for dict_content in test_data]
+
+        real_for_report = MultiLabelBinarizer().fit_transform(real)
+        predictions_for_report = MultiLabelBinarizer().fit_transform(predictions)
+
+        class_list = [tag for tag, idx in model.tag2idx.items()]
+
+        report = metrics.classification_report(real_for_report, predictions_for_report, target_names=class_list,
+                                               digits=4)
+        print("测试完成！")
+        return report
+
 
 if __name__ == '__main__':
     model = HMM_Viterbi(char2idx_path="./dicts/char2idx.json",
                         tag2idx_path="./dicts/tag2idx.json")
     model.fit("./corpus/msr_training_data_processed.txt")
+    report = model.test("./corpus/msr_test.utf8", "./corpus/msr_test_gold.txt")
+    print(report)
+
     while True:
         print("请输入文本：")
         text = input()
-        model.predict(text)
+        text_participle, _ = model.predict(text)
+        print(text_participle)
