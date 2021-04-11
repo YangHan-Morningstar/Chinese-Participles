@@ -50,7 +50,7 @@ class BiGRU(object):
         rnn_model.fit(x=x, y=y, batch_size=batch_size, epochs=epochs, callbacks=ck_callback)
 
     def get_model(self):
-        text_inputs = tf.keras.layers.Input(shape=(self.max_length, ))
+        text_inputs = tf.keras.layers.Input(shape=(None, ))
         text_embeddings_outputs = tf.keras.layers.Embedding(self.vocab_size, self.embedding_dim)(text_inputs)
         bilstm_ouptuts_1 = tf.keras.layers.Bidirectional(
             tf.keras.layers.GRU(
@@ -81,7 +81,7 @@ class BiGRU(object):
                     text_idx.append(self.char2idx[char])
                 else:
                     text_idx.append(self.char2idx["UNK"])
-            text_inputs = pad_sequences([text_idx], maxlen=self.max_length, padding="post")
+            text_inputs = np.array([text_idx])
             predictions = rnn_model.predict(x=text_inputs)
             predictions_num_list = np.argmax(predictions, axis=-1)[0]
 
