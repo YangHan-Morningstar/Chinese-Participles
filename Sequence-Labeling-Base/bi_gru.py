@@ -4,6 +4,8 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
 import tensorflow as tf
 import numpy as np
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn import metrics
 
 
 class BiGRU(object):
@@ -72,6 +74,42 @@ class BiGRU(object):
         rnn_model.summary()
         rnn_model.load_weights(weights_filepath)
 
+        test_dic = load_data("./corpus/msr_test_gold.txt")
+        real = [content["label"] for content in test_dic]
+        prediction = []
+        for dic in test_dic:
+            text_content = dic["text"]
+            text_idx = []
+            for char in text_content:
+                if char in self.char2idx:
+                    text_idx.append(self.char2idx[char])
+                else:
+                    text_idx.append(self.char2idx["UNK"])
+            text_inputs = np.array([text_idx])
+            predictions = rnn_model.predict(x=text_inputs)
+            predictions_num_list = np.argmax(predictions, axis=-1)[0]
+            prediction.append(predictions_num_list)
+        real_for_report = MultiLabelBinarizer().fit_transform(real)
+        predictions_for_report = MultiLabelBinarizer().fit_transform(prediction)
+        class_list = [tag for tag, idx in self.tag2idx.items()]
+        report = metrics.classification_report(real_for_report, predictions_for_report, target_names=class_list, digits=4)
+
+        print(report)
+
+    def decode(self, text, num_list):
+        text_participle = ""
+        for i in range(len(text)):
+            if self.idx2tag[num_list[i]] == "S" or self.idx2tag[num_list[i]] == "E":
+                text_participle += text[i] + "  "
+            else:
+                text_participle += text[i]
+        return text_participle
+
+    def predict(self, weights_filepath):
+        rnn_model = self.get_model()
+        rnn_model.summary()
+        rnn_model.load_weights(weights_filepath)
+
         while True:
             print("请输入文本：")
             text_content = input()
@@ -87,15 +125,6 @@ class BiGRU(object):
 
             print(self.decode(text_content, predictions_num_list))
 
-    def decode(self, text, num_list):
-        text_participle = ""
-        for i in range(len(text)):
-            if self.idx2tag[num_list[i]] == "S" or self.idx2tag[num_list[i]] == "E":
-                text_participle += text[i] + "  "
-            else:
-                text_participle += text[i]
-        return text_participle
-
 
 if __name__ == "__main__":
     import os
@@ -107,4 +136,5 @@ if __name__ == "__main__":
     rnn_model.train("./corpus/msr_training_data_processed_for_dl.txt", batch_size=32, epochs=10)
 
     # 测试
-    # rnn_model.test("./rnn-dense_weights.10-0.9926.hdf5")
+    # rnn_model.test("./weights.26-0.9960.hdf5")
+    # rnn_model.predict("./weights.26-0.9960.hdf5")
