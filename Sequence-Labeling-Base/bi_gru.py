@@ -131,9 +131,9 @@ if __name__ == "__main__":
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
-    rnn_model = BiGRU("./dicts/char2idx.json", "dicts/tag2idx_for_dl.json")
+    rnn_model = BiGRU("./dicts/char2idx.json", "dicts/tag2idx.json")
     # 训练
-    rnn_model.train("./corpus/msr_training_data_processed_for_dl.txt", batch_size=32, epochs=10)
+    rnn_model.train("./corpus/msr_training_data_processed_idx.txt", batch_size=32, epochs=10)
 
     # 测试
     # rnn_model.test("./weights.26-0.9960.hdf5")
