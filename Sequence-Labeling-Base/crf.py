@@ -1,17 +1,20 @@
 import sklearn_crfsuite
-from sklearn_crfsuite import metrics
 import joblib
 from utils import *
+from sklearn import metrics
+from sklearn.preprocessing import MultiLabelBinarizer
 
 
 class CRF(object):
-    def __init__(self, model_path="./crf_model.pkl"):
+    def __init__(self, tag2idx_path, model_path="./crf_model.pkl"):
         self.algorithm = "lbfgs"
         self.c1 = "0.1"
         self.c2 = "0.1"
         self.max_iterations = 100
         self.model_path = model_path
         self.model = None
+        self.tag2idx = load_dict(tag2idx_path)
+        self.idx2tag = {v: k for k, v in self.tag2idx.items()}
 
     def initialize_model(self):
         print("初始化模型...")
@@ -27,22 +30,39 @@ class CRF(object):
 
     def train(self, train_dic_path):
         self.initialize_model()
-        x, y = self.load_train_data(train_dic_path)
-
-        x_train, y_train = x[0: 80000], y[0: 80000]
-        x_test, y_test = x[80000:], y[80000:]
+        x_train, y_train = self.load_processed_data(train_dic_path)
 
         print("开始训练...")
         self.model.fit(x_train, y_train)
 
-        print("开始测试...")
+        self.save_model()
+        print("训练完成，模型已保存")
+
+    def test(self, test_dic_path):
+        x_test, y_test_raw = self.load_processed_data(test_dic_path, need_split=True)
+
         labels = list(self.model.classes_)
         y_predict = self.model.predict(x_test)
-        metrics.flat_f1_score(y_test, y_predict, average='weighted', labels=labels)
-        sorted_labels = sorted(labels, key=lambda name: (name[1:], name[0]))
-        print(metrics.flat_classification_report(y_test, y_predict, labels=sorted_labels, digits=3))
 
-        self.save_model()
+        prediction = self.convert_tag_to_idx(y_predict)
+
+        real_for_report = MultiLabelBinarizer().fit_transform(y_test_raw)
+        prediction_for_report = MultiLabelBinarizer().fit_transform(prediction)
+
+        class_list = [tag for tag, idx in self.tag2idx.items()]
+
+        report = metrics.classification_report(real_for_report,
+                                               prediction_for_report,
+                                               target_names=class_list,
+                                               digits=4)
+        print(report)
+
+    def convert_tag_to_idx(self, tag_array2d):
+        idx_array2d = []
+        for tag_array in tag_array2d:
+            cache = [self.tag2idx[tag] for tag in tag_array]
+            idx_array2d.append(cache)
+        return idx_array2d
 
     def predict(self, text):
         word_lists = []
@@ -99,12 +119,16 @@ class CRF(object):
             end = end + 1
         return words
 
-    def load_train_data(self, train_dic_path):
-        train_dict = load_data(train_dic_path)
+    def load_processed_data(self, data_dic_path, need_split=False):
+        data_dict = load_data(data_dic_path)
         word_seq, tag_seq = [], []
-        for single_data_dict in train_dict:
+        for single_data_dict in data_dict:
             text, label = single_data_dict["text"], single_data_dict["label"]
-            text = ["<BOS>"] + text + ["<EOS>"]
+            if need_split:
+                char_list = [char for char in text]
+                text = ["<BOS>"] + char_list + ["<EOS>"]
+            else:
+                text = ["<BOS>"] + text + ["<EOS>"]
             word_seq.append(text)
             tag_seq.append(label)
 
@@ -114,13 +138,14 @@ class CRF(object):
 
 
 if __name__ == "__main__":
-    crf = CRF()
+    crf = CRF(tag2idx_path="./dicts/tag2idx.json")
 
     # 训练
-    crf.train("./corpus/msr_training_data_processed.txt")
+    # crf.train("./corpus/msr_training_data_processed.txt")
 
     # 测试
-    # crf.load_model()
+    crf.load_model()
+    crf.test("./corpus/msr_test_gold.txt")
     # while True:
     #     print("请输入中文句子：")
     #     text = input()
